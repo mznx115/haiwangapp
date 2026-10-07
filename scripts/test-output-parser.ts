@@ -158,6 +158,13 @@ const cases: Case[] = [
     expectStrategy: 'salvaged',
     expectReplies: 0,
   },
+  {
+    name: '16. replies 前置 + 截断在第 3 条话术中途（新契约顺序，抢救出前 2 条）',
+    input:
+      '{"replies":[{"style":"稳妥版","text":"你好呀","scenario":"破冰","risk":"无"},{"style":"升温版","text":"跟你聊天挺舒服的","scenario":"聊熟了","risk":"别急"},{"style":"幽',
+    expectStrategy: 'salvaged',
+    expectReplies: 2,
+  },
 ]
 
 let passed = 0

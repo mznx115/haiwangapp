@@ -24,6 +24,24 @@ const presetModels = [
   'glm-4-plus',
 ]
 
+/**
+ * 最大输出 tokens 的常见档位。
+ * 各模型自身上限差别很大（DeepSeek 8k、GPT-4o 16k、Claude 64k、Gemini 64k…），
+ * 这里只给一个够用的天花板，具体填多少取决于你用的模型。
+ */
+const MAX_TOKEN_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072]
+
+const maxTokensWarning = computed(() => {
+  const { maxTokens, contextWindow } = settings.settings
+  if (maxTokens > contextWindow * 0.6) {
+    return `输出预留 ${maxTokens} 已超过上下文窗口的 60%，会挤占 L5 记忆层。建议把「模型上下文窗口」一并调到 ${Math.max(
+      131072,
+      maxTokens * 3,
+    )} 或更大。`
+  }
+  return ''
+})
+
 /* ---------- 数据管理 ---------- */
 const storage = computed(() => stats())
 const ioMessage = ref('')
@@ -262,11 +280,38 @@ async function onFetchModels() {
             v-model.number="settings.settings.maxTokens"
             type="number"
             min="128"
-            max="8192"
-            step="128"
+            max="1048576"
+            step="1024"
             class="w-full bg-transparent text-[14px] outline-none"
           />
+          <span class="mt-1.5 block text-[11px] leading-snug text-wx-hint">
+            上限由你所用模型决定（DeepSeek 8k / GPT-4o 16k / Claude 与 Gemini 64k 等）。
+            填超了可能被网关拒绝，或仍被上游截断。结构化输出建议至少 4096。
+          </span>
+          <span class="mt-2 flex flex-wrap gap-1.5">
+            <button
+              v-for="p in MAX_TOKEN_PRESETS"
+              :key="p"
+              type="button"
+              class="rounded border px-1.5 py-0.5 text-[11px] tabular-nums"
+              :class="
+                settings.settings.maxTokens === p
+                  ? 'border-wx-brand bg-wx-brand/10 text-wx-brand'
+                  : 'border-wx-line text-wx-sub'
+              "
+              @click="settings.settings.maxTokens = p"
+            >
+              {{ p >= 1024 ? `${p / 1024}k` : p }}
+            </button>
+          </span>
         </label>
+
+        <div
+          v-if="maxTokensWarning"
+          class="relative bg-[#fff7e6] px-4 py-3 text-[11px] leading-snug text-[#b06b00]"
+        >
+          ⚠ {{ maxTokensWarning }}
+        </div>
 
         <label class="wx-divider relative block px-4 py-3">
           <span class="mb-1 block text-[12px] text-wx-sub">

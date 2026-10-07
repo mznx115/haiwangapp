@@ -16,9 +16,9 @@ export function defaultSettings(): AppSettings {
     apiKey: '',
     model: '',
     temperature: 0.8,
-    // 默认给足余量：结构化输出（分析 + 3 条话术 + 场景 + 风险）很容易超过 1024，
-    // 一旦被截断 JSON 就解析不了，只能降级成纯文本。
-    maxTokens: 3072,
+    // 结构化输出（分析 + 3 条话术 + 场景 + 风险）很吃 token，1024 实测会被截断。
+    // 这里给 4096 留足余量；具体上限取决于所用模型，可在设置页按档位调整。
+    maxTokens: 4096,
     stream: true,
     contextWindow: 32768,
     summarizeAfter: 12,

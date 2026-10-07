@@ -214,9 +214,14 @@ export function buildContext(input: BuildContextInput): BuiltContext {
   const fixedTokens =
     estimateTokens(l1) + estimateTokens(l2) + estimateTokens(l3) + estimateTokens(l4) + estimateTokens(l6)
 
-  // 预留给输出 + 安全余量
-  const reserve = Math.max(settings.maxTokens || 1024, 512) + 500
+  // 预留给输出 + 安全余量。
+  //
+  // 注意：不能把 maxTokens 原样当作预留，否则用户把输出上限拉到 128k 而上下文
+  // 窗口还是 32k 时，L5 记忆层会被直接挤空（预算算成负数）。这里对预留做 60% 封顶，
+  // 保证「输入 + 输出」之和不会超过窗口，同时记忆层始终有位置。
   const contextWindow = settings.contextWindow || 32768
+  const wantReserve = Math.max(settings.maxTokens || 1024, 512)
+  const reserve = Math.min(wantReserve, Math.floor(contextWindow * 0.6)) + 500
   const memoryBudget = Math.max(contextWindow - reserve - fixedTokens, 300)
 
   const l5 = buildL5Content(history, memoryBudget)

@@ -102,10 +102,16 @@ function fallbackNote(m: { truncated?: boolean; finishReason?: string }): string
   return '模型未按结构化格式返回，已按原文展示（可重试一次）'
 }
 
+const MAX_TOKEN_STEPS = [4096, 8192, 16384, 32768, 65536, 131072]
+
+/** 截断时建议的下一个档位 */
+const nextMaxTokens = computed(
+  () => MAX_TOKEN_STEPS.find((p) => p > settings.settings.maxTokens) ?? MAX_TOKEN_STEPS[MAX_TOKEN_STEPS.length - 1],
+)
+
 function bumpMaxTokens() {
-  const next = settings.settings.maxTokens >= 4096 ? 8192 : 4096
-  settings.settings.maxTokens = next
-  window.alert(`「最大输出 tokens」已调到 ${next}，重新点一次「生成」即可。`)
+  settings.settings.maxTokens = nextMaxTokens.value
+  window.alert(`「最大输出 tokens」已调到 ${nextMaxTokens.value}，重新点一次「生成」即可。`)
 }
 </script>
 
@@ -215,7 +221,7 @@ function bumpMaxTokens() {
                   class="mt-1.5 rounded-md bg-[#b06b00] px-2.5 py-1 text-[11px] text-white active:opacity-80"
                   @click="bumpMaxTokens"
                 >
-                  一键把「最大输出 tokens」调到 {{ settings.settings.maxTokens >= 4096 ? 8192 : 4096 }}
+                  一键把「最大输出 tokens」调到 {{ nextMaxTokens }}
                 </button>
               </div>
 
