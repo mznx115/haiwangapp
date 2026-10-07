@@ -152,6 +152,39 @@ APK 里 fetch 被跨域拦下时会自动改走原生 OkHttp 重试；**浏览�
 （`Capacitor.isNativePlatform()` 为 false）。所以网页版完全依赖服务端返回 CORS 头。
 你当前网关已经配好了，这一条不是问题。
 
+## Release 签名
+
+没配签名密钥时 CI 会用 debug 签名出包（能用，但每次换机器/换 runner 的签名一致，
+仍然可以覆盖安装；只是 debug 签名不适合正式分发）。
+
+要启用正式签名，在仓库 Settings → Secrets and variables → Actions 添加 4 个 secret：
+
+| Secret 名 | 值 |
+|---|---|
+| `KEYSTORE_BASE64` | 密钥库文件的 base64（`base64 -w0 haiwang-release.p12`） |
+| `KEYSTORE_PASSWORD` | 密钥库口令 |
+| `KEY_ALIAS` | 密钥别名 |
+| `KEY_PASSWORD` | 密钥口令（PKCS12 下与密钥库口令相同） |
+
+配好之后重新跑一次工作流：有 `keystore.properties` 就自动走 `assembleRelease`，
+并且会用 `apksigner verify --print-certs` 校验签名、把证书打印到日志里。
+
+**自己生成密钥库**（需要 JDK）：
+
+```bash
+keytool -genkeypair -v -keystore haiwang-release.jks \
+  -alias haiwang -keyalg RSA -keysize 4096 -validity 10950 \
+  -storetype PKCS12
+base64 -w0 haiwang-release.jks > keystore-base64.txt
+```
+
+**注意事项**
+
+- 密钥库是整个 App 的身份凭证。**丢了就无法给已安装的用户做覆盖升级**，只能卸载重装。
+  务必离线备份（U 盘 / 密码管理器），且**绝不要提交进仓库**（`.gitignore` 已挡掉 `*.p12` / `*.jks` / `*.keystore` / `keystore.properties`）
+- 从 debug 签名包切换到正式签名包时，签名不一致，需要先卸载旧版再装
+- CI 用构建序号作为 `versionCode`，所以每次构建都能正常覆盖安装
+
 ## 六层提示词结构
 
 | 层 | 内容 | 来源 |
