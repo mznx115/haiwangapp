@@ -178,6 +178,16 @@ keytool -genkeypair -v -keystore haiwang-release.jks \
 base64 -w0 haiwang-release.jks > keystore-base64.txt
 ```
 
+**验证签名**（不需要 JDK）：
+
+```bash
+python scripts/verify-apk-signature.py haiwang.apk --expect cert.pem
+```
+
+该脚本直接解析 APK Signing Block 的 v2 结构，把里面 DER 编码的证书抠出来，
+与 `cert.pem` 的 SHA-256 逐字节比对 —— 所以本机没有 `apksigner` 也能确认
+「这个 APK 确实是用我的密钥签的」。
+
 **注意事项**
 
 - 密钥库是整个 App 的身份凭证。**丢了就无法给已安装的用户做覆盖升级**，只能卸载重装。
