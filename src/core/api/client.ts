@@ -217,7 +217,11 @@ export async function listModels(
 }
 
 /** 解析 SSE 文本流，逐段回调增量 */
-async function consumeSse(res: Response, onDelta?: (delta: string) => void): Promise<string> {
+async function consumeSse(
+  res: Response,
+  onDelta?: (delta: string) => void,
+  onFinish?: (reason: string) => void,
+): Promise<string> {
   const body = res.body
   if (!body) throw new ApiError('badresponse', '流式响应没有可读的 body')
 
@@ -225,6 +229,7 @@ async function consumeSse(res: Response, onDelta?: (delta: string) => void): Pro
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
   let full = ''
+  let finishReason = ''
 
   const handleLine = (rawLine: string) => {
     const line = rawLine.trim()
@@ -233,7 +238,13 @@ async function consumeSse(res: Response, onDelta?: (delta: string) => void): Pro
     const payload = line.slice(5).trim()
     if (!payload || payload === '[DONE]') return
     try {
-      const delta = extractContent(JSON.parse(payload) as unknown)
+      const json = JSON.parse(payload) as unknown
+      // finish_reason 通常出现在最后一个 chunk 上
+      const choices = (json as { choices?: { finish_reason?: string }[] }).choices
+      const fr = choices?.[0]?.finish_reason
+      if (typeof fr === 'string' && fr) finishReason = fr
+
+      const delta = extractContent(json)
       if (delta) {
         full += delta
         onDelta?.(delta)
@@ -253,7 +264,15 @@ async function consumeSse(res: Response, onDelta?: (delta: string) => void): Pro
   }
   if (buffer.trim()) handleLine(buffer)
 
+  if (finishReason) onFinish?.(finishReason)
   return full
+}
+
+/** 从一次性 JSON 响应里取 finish_reason */
+function extractFinishReason(json: unknown): string {
+  const choices = (json as { choices?: { finish_reason?: string }[] }).choices
+  const fr = choices?.[0]?.finish_reason
+  return typeof fr === 'string' ? fr : ''
 }
 
 /**
@@ -292,6 +311,8 @@ export async function chat(
     if (contentType.includes('application/json')) {
       const json = (await res.json()) as unknown
       const text = extractContent(json)
+      const fr = extractFinishReason(json)
+      if (fr) handlers.onFinish?.(fr)
       if (text && handlers.onDelta) handlers.onDelta(text)
       handlers.onTransport?.({ mode: 'fetch', streaming: false })
       return text
@@ -299,7 +320,7 @@ export async function chat(
 
     if (wantStream && res.body) {
       handlers.onTransport?.({ mode: 'fetch', streaming: true })
-      return await consumeSse(res, handlers.onDelta)
+      return await consumeSse(res, handlers.onDelta, handlers.onFinish)
     }
 
     const text = await res.text()

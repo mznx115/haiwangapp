@@ -66,6 +66,10 @@ export interface Message {
   error?: string
   /** 输出后置安全校验结果（仅结构化解析失败时挂在消息上） */
   safety?: string[]
+  /** 输出被 max_tokens 截断（结构化解析只能抢救或降级） */
+  truncated?: boolean
+  /** 服务端返回的 finish_reason */
+  finishReason?: string
   createdAt: number
 }
 

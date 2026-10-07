@@ -91,6 +91,22 @@ function onKeydown(e: KeyboardEvent) {
     void onGenerate()
   }
 }
+
+/** 降级提示：区分「被截断」和「格式真的不对」，前者是可修的 */
+function fallbackNote(m: { truncated?: boolean; finishReason?: string }): string {
+  if (m.truncated) {
+    return m.finishReason === 'length'
+      ? '输出被 max_tokens 截断，JSON 没写完，已按原文展示'
+      : '输出被截断，已按原文展示'
+  }
+  return '模型未按结构化格式返回，已按原文展示（可重试一次）'
+}
+
+function bumpMaxTokens() {
+  const next = settings.settings.maxTokens >= 4096 ? 8192 : 4096
+  settings.settings.maxTokens = next
+  window.alert(`「最大输出 tokens」已调到 ${next}，重新点一次「生成」即可。`)
+}
 </script>
 
 <template>
@@ -181,12 +197,28 @@ function onKeydown(e: KeyboardEvent) {
               <div class="max-w-[92%] rounded-lg bg-white px-3 py-2 shadow-sm">
                 <p
                   v-if="m.rawFallback"
-                  class="mb-1.5 text-[11px] text-[#b06b00]"
+                  class="mb-1.5 text-[11px] leading-snug"
+                  :class="m.truncated ? 'text-[#b06b00]' : 'text-wx-hint'"
                 >
-                  模型未按结构化格式返回，已按原文展示（可重试一次）
+                  {{ fallbackNote(m) }}
                 </p>
                 <p class="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{{ m.content }}</p>
               </div>
+
+              <div
+                v-if="m.truncated"
+                class="rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"
+              >
+                <p>症状：模型还没写完 JSON 就被 {{ m.finishReason === 'length' ? 'max_tokens 上限' : '截断' }} 掐断了，所以无法渲染成话术卡片。</p>
+                <button
+                  type="button"
+                  class="mt-1.5 rounded-md bg-[#b06b00] px-2.5 py-1 text-[11px] text-white active:opacity-80"
+                  @click="bumpMaxTokens"
+                >
+                  一键把「最大输出 tokens」调到 {{ settings.settings.maxTokens >= 4096 ? 8192 : 4096 }}
+                </button>
+              </div>
+
               <ul
                 v-if="m.safety?.length"
                 class="space-y-1 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"

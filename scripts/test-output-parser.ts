@@ -11,7 +11,7 @@ import { parseAnswer } from '../src/core/skill/outputParser.ts'
 interface Case {
   name: string
   input: string
-  expectStrategy: 'strict' | 'repaired' | 'balanced' | 'fallback'
+  expectStrategy: 'strict' | 'repaired' | 'balanced' | 'salvaged' | 'fallback'
   expectReplies: number
 }
 
@@ -119,6 +119,44 @@ const cases: Case[] = [
     }`,
     expectStrategy: 'repaired',
     expectReplies: 1,
+  },
+  {
+    name: '11. 字符串里是真实换行（非法 JSON 控制字符）',
+    input: `{
+  "analysis": "对方态度还行",
+  "replies": [
+    {"style":"稳妥版","text":"第一行
+第二行","scenario":"随时","risk":"无"}
+  ]
+}`,
+    expectStrategy: 'repaired',
+    expectReplies: 1,
+  },
+  {
+    name: '12. 被 max_tokens 截断在字符串中间（实测报错场景）',
+    input:
+      '{"analysis":"你们刚通过朋友介绍加上好友，属于完全安全区。","replies":[{"style":"稳妥版","text":"哈喽，我是之前朋友介绍的那个，今天终于加上啦～先自我介绍一下，我平时',
+    expectStrategy: 'salvaged',
+    expectReplies: 1,
+  },
+  {
+    name: '13. 被截断在数组中间（已有一条完整话术）',
+    input:
+      '{"analysis":"初识阶段","replies":[{"style":"稳妥版","text":"你好呀","scenario":"破冰","risk":"无"},',
+    expectStrategy: 'salvaged',
+    expectReplies: 1,
+  },
+  {
+    name: '14. 被截断在 "key": 半截位置上',
+    input: '{"analysis":"初识阶段","replies":[{"style":"稳妥版","text":',
+    expectStrategy: 'salvaged',
+    expectReplies: 0,
+  },
+  {
+    name: '15. 被截断在容器开头',
+    input: '{"analysis":"刚聊死场了","replies":[',
+    expectStrategy: 'salvaged',
+    expectReplies: 0,
   },
 ]
 

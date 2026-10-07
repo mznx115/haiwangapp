@@ -167,6 +167,8 @@ export const useChatStore = defineStore('chat', () => {
     const controller = new AbortController()
     controllers.set(profileId, controller)
 
+    let finishReason = ''
+
     try {
       const full = await apiChat(
         { baseUrl: settings.normalizedBaseUrl(), apiKey: settings.settings.apiKey },
@@ -182,10 +184,14 @@ export const useChatStore = defineStore('chat', () => {
           onDelta: (delta) => {
             assistant.content += delta
           },
+          onFinish: (reason) => {
+            finishReason = reason
+          },
           onTransport: (info) => {
             const meta = lastMeta.value[profileId]
             if (meta) {
-              meta.transportNote = info.note ?? (info.mode === 'native' ? '使用系统原生请求（非流式）' : undefined)
+              meta.transportNote =
+                info.note ?? (info.mode === 'native' ? '使用系统原生请求（非流式）' : undefined)
             }
           },
         },
@@ -195,6 +201,9 @@ export const useChatStore = defineStore('chat', () => {
 
       const outcome = parseAnswer(assistant.content)
       const safety = checkOutputSafety(assistant.content)
+
+      assistant.finishReason = finishReason
+      assistant.truncated = finishReason === 'length' || outcome.strategy === 'salvaged'
 
       if (outcome.answer) {
         const answer: SkillAnswer = { ...outcome.answer }
