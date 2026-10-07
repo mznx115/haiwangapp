@@ -1,0 +1,26 @@
+# 统一换行符策略。
+# 仓库内一律存 LF；Windows 专有的批处理文件检出为 CRLF。
+# 没有这一条时，Windows 上的 core.autocrlf=true 有把 gradlew 变成 CRLF 的风险，
+# 而 CRLF 的 shell 脚本在 Linux CI 上会直接 bad interpreter 失败。
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+
+# 二进制文件不做任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.apk binary
+*.aab binary
+*.zip binary
+
+# 锁文件与生成物不参与 diff 语言统计
+pnpm-lock.yaml linguist-generated=true

@@ -6,7 +6,7 @@ const props = defineProps<{
   title: string
   /** 是否显示返回箭头 */
   back?: boolean
-  /** 右侧插槽占位色点（防串号视觉锚点） */
+  /** 右侧插槽色点（防串号视觉锚点） */
   dotColor?: string
   /** 副标题，如关系阶段 */
   subtitle?: string
@@ -23,7 +23,7 @@ function onBack() {
 
 <template>
   <header class="safe-top shrink-0 border-b border-wx-line bg-[#f7f7f7]/95 backdrop-blur-md">
-    <div class="relative flex h-11 items-center justify-center px-12">
+    <div class="relative flex h-11 items-center justify-center px-14">
       <button
         v-if="showBack"
         type="button"
@@ -46,12 +46,16 @@ function onBack() {
         <span class="truncate text-[16px] font-medium">{{ title }}</span>
       </div>
 
-      <span
-        v-if="subtitle"
-        class="absolute right-3 rounded-full bg-black/5 px-2 py-0.5 text-[11px] text-wx-sub"
-      >
-        {{ subtitle }}
-      </span>
+      <div class="absolute right-2 flex items-center gap-1.5">
+        <slot name="right">
+          <span
+            v-if="subtitle"
+            class="rounded-full bg-black/5 px-2 py-0.5 text-[11px] text-wx-sub"
+          >
+            {{ subtitle }}
+          </span>
+        </slot>
+      </div>
     </div>
   </header>
 </template>

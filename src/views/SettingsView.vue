@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import NavBar from '@/components/NavBar.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { listModels, testConnection } from '@/core/api/client'
 import { describeError } from '@/core/api/errors'
+import { copyText } from '@/core/clipboard'
+import { exportAll, importAll, stats, wipeAll } from '@/db/storage'
 
 const settings = useSettingsStore()
 const saved = ref(false)
@@ -21,6 +23,37 @@ const presetModels = [
   'qwen-plus',
   'glm-4-plus',
 ]
+
+/* ---------- 数据管理 ---------- */
+const storage = computed(() => stats())
+const ioMessage = ref('')
+const showImport = ref(false)
+const importText = ref('')
+
+async function onExport() {
+  const json = exportAll()
+  const ok = await copyText(json)
+  ioMessage.value = ok
+    ? `已复制备份到剪贴板（${(json.length / 1024).toFixed(1)} KB），请粘贴到安全的地方保存`
+    : '复制失败，请改用长按选择文本'
+}
+
+function onImport() {
+  const r = importAll(importText.value)
+  ioMessage.value = r.message
+  if (r.ok) {
+    importText.value = ''
+    showImport.value = false
+  }
+}
+
+function onWipe() {
+  if (!window.confirm('清空本机全部数据（对象档案、聊天记录、设置、人设）？此操作无法撤销。')) return
+  wipeAll()
+  ioMessage.value = '已清空，请手动刷新页面'
+}
+
+/* ---------- 接口 ---------- */
 
 function onSave() {
   saved.value = true
@@ -89,6 +122,18 @@ async function onFetchModels() {
     <NavBar title="设置" />
 
     <div class="scroll-area min-h-0 flex-1 pb-8">
+      <!-- 明文 HTTP 告警 -->
+      <div
+        v-if="settings.isInsecure()"
+        class="mx-4 mt-4 rounded-lg bg-[#fff7e6] p-3 text-[12px] leading-snug text-[#b06b00]"
+      >
+        <p class="mb-1 text-[13px] font-medium">⚠ 当前接口使用明文 HTTP</p>
+        <p>
+          API Key 和聊天内容会以明文经过网络。自建网关建议启用 HTTPS 后再填过来；
+          若只在局域网/本机使用可以忽略。
+        </p>
+      </div>
+
       <p class="px-4 pt-5 pb-2 text-[13px] text-wx-sub">接口</p>
       <div class="mx-4 overflow-hidden rounded-lg bg-wx-other">
         <label class="wx-divider relative block px-4 py-3">
@@ -270,9 +315,68 @@ async function onFetchModels() {
         </button>
       </div>
 
-      <p class="mt-4 px-8 text-center text-[11px] leading-relaxed text-wx-hint">
-        设置改动即时保存到本机。API Key 在 M4 会迁移到 Android Keystore 加密存储。<br />
-        当前接口为明文 HTTP，建议尽快在服务端启用 HTTPS。
+      <!-- 数据管理 -->
+      <p class="px-4 pt-6 pb-2 text-[13px] text-wx-sub">数据</p>
+      <div class="mx-4 overflow-hidden rounded-lg bg-wx-other">
+        <div class="wx-divider relative px-4 py-3 text-[13px] text-wx-sub">
+          本机已用 {{ storage.human }}
+          <span class="text-[11px] text-wx-hint">
+            （{{ storage.keys.map((k) => k.key).join(' / ') || '空' }}）
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="wx-divider relative w-full px-4 py-3.5 text-left text-[15px] active:bg-black/[0.04]"
+          @click="onExport"
+        >
+          导出备份（复制到剪贴板）
+        </button>
+
+        <button
+          type="button"
+          class="wx-divider relative w-full px-4 py-3.5 text-left text-[15px] active:bg-black/[0.04]"
+          @click="showImport = !showImport"
+        >
+          从备份恢复
+        </button>
+
+        <button
+          type="button"
+          class="relative w-full px-4 py-3.5 text-left text-[15px] text-wx-danger active:bg-black/[0.04]"
+          @click="onWipe"
+        >
+          清空本机全部数据
+        </button>
+      </div>
+
+      <div v-if="showImport" class="mx-4 mt-3 rounded-lg bg-wx-other p-3">
+        <textarea
+          v-model="importText"
+          rows="4"
+          placeholder="把之前导出的备份 JSON 粘贴到这里"
+          class="w-full resize-none rounded border border-wx-line bg-white px-2 py-1.5 font-mono text-[11px] leading-relaxed outline-none placeholder:text-wx-hint"
+        />
+        <button
+          type="button"
+          class="mt-2 rounded-md bg-wx-brand px-4 py-1.5 text-[13px] text-white active:opacity-80 disabled:opacity-40"
+          :disabled="!importText.trim()"
+          @click="onImport"
+        >
+          开始恢复
+        </button>
+      </div>
+
+      <p
+        v-if="ioMessage"
+        class="mx-4 mt-3 rounded-lg bg-black/[0.04] p-3 text-[12px] leading-snug text-wx-sub"
+      >
+        {{ ioMessage }}
+      </p>
+
+      <p class="mt-5 px-8 text-center text-[11px] leading-relaxed text-wx-hint">
+        全部数据仅保存在这台设备上，不会上传任何第三方。<br />
+        当前 API Key 存于应用私有目录，后续版本会迁移到 Android Keystore 加密存储。
       </p>
     </div>
   </div>

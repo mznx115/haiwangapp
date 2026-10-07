@@ -13,6 +13,18 @@ const routes: RouteRecordRaw[] = [
     meta: { tab: true, title: '对象' },
   },
   {
+    path: '/profile/new',
+    name: 'profile-new',
+    component: () => import('@/views/ProfileEditView.vue'),
+    meta: { tab: false, title: '添加对象' },
+  },
+  {
+    path: '/profile/:id/edit',
+    name: 'profile-edit',
+    component: () => import('@/views/ProfileEditView.vue'),
+    meta: { tab: false, title: '编辑档案' },
+  },
+  {
     path: '/chat/:profileId',
     name: 'chat',
     component: () => import('@/views/ChatView.vue'),

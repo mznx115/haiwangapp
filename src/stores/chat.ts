@@ -8,6 +8,7 @@ import { parseAnswer } from '@/core/skill/outputParser'
 import { useProfilesStore } from './profiles'
 import { useSettingsStore } from './settings'
 import { checkOutputSafety } from '@/core/safety'
+import { K, readJson, writeJson } from '@/db/storage'
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -32,12 +33,27 @@ export const useChatStore = defineStore('chat', () => {
   const settings = useSettingsStore()
 
   /** profileId -> 该对象的消息，彼此物理隔离 */
-  const byProfile = ref<Record<string, Message[]>>({})
+  const byProfile = ref<Record<string, Message[]>>(
+    readJson<Record<string, Message[]>>(K.messages, {}),
+  )
   const generating = ref<Record<string, boolean>>({})
   const lastError = ref<Record<string, FriendlyError | null>>({})
   const lastMeta = ref<Record<string, LastMeta | null>>({})
 
   const controllers = new Map<string, AbortController>()
+
+  let saveTimer: number | undefined
+
+  /** 落盘。流式生成期间不要调用，等一轮结束再存，避免每个 token 都写一次。 */
+  function persist(immediate = false) {
+    if (immediate) {
+      window.clearTimeout(saveTimer)
+      writeJson(K.messages, byProfile.value)
+      return
+    }
+    window.clearTimeout(saveTimer)
+    saveTimer = window.setTimeout(() => writeJson(K.messages, byProfile.value), 300)
+  }
 
   /** 唯一的读取入口，必须传 profileId */
   function list(profileId: string): Message[] {
@@ -63,12 +79,22 @@ export const useChatStore = defineStore('chat', () => {
 
   function clear(profileId: string) {
     byProfile.value[profileId] = []
+    persist(true)
+  }
+
+  /** 删除某个对象的全部记录（删除对象时调用，避免留下孤儿数据） */
+  function dropProfile(profileId: string) {
+    delete byProfile.value[profileId]
+    controllers.get(profileId)?.abort()
+    controllers.delete(profileId)
+    persist(true)
   }
 
   function removeMessage(profileId: string, messageId: string) {
     const arr = byProfile.value[profileId]
     if (!arr) return
     byProfile.value[profileId] = arr.filter((m) => m.id !== messageId)
+    persist()
   }
 
   function cancel(profileId: string) {
@@ -190,6 +216,7 @@ export const useChatStore = defineStore('chat', () => {
       controllers.delete(profileId)
       generating.value[profileId] = false
       assistant.createdAt = Date.now()
+      persist(true)
     }
   }
 
@@ -219,9 +246,11 @@ export const useChatStore = defineStore('chat', () => {
     metaOf,
     lastMeta,
     clear,
+    dropProfile,
     cancel,
     generate,
     markCopied,
+    persist,
     totalMessages,
     lastRequestTokens,
   }

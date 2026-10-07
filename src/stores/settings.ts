@@ -1,15 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { AppSettings, Persona } from '@/types'
-
-const SETTINGS_KEY = 'haiwang.settings.v1'
-const PERSONA_KEY = 'haiwang.persona.v1'
+import { K, readJson, writeJson } from '@/db/storage'
 
 /**
  * 默认设置。
  *
  * 注意：baseUrl 只是预填一个默认值，**绝不硬编码 API Key**。
- * M4 会把 apiKey 迁移到 Capacitor Secure Storage（Android Keystore）。
+ * apiKey 目前存在本机 localStorage；迁移到 Android Keystore 加密存储
+ * 需要在真机上验证，属于后续版本的工作（见方案.md M4）。
  */
 export function defaultSettings(): AppSettings {
   return {
@@ -34,43 +33,16 @@ export function defaultPersona(): Persona {
   }
 }
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return fallback
-    return { ...fallback, ...(JSON.parse(raw) as Partial<T>) }
-  } catch {
-    return fallback
-  }
+function load<T extends object>(key: string, fallback: T): T {
+  return { ...fallback, ...readJson<Partial<T>>(key, {}) }
 }
 
 export const useSettingsStore = defineStore('settings', () => {
-  const settings = ref<AppSettings>(load(SETTINGS_KEY, defaultSettings()))
-  const persona = ref<Persona>(load(PERSONA_KEY, defaultPersona()))
+  const settings = ref<AppSettings>(load(K.settings, defaultSettings()))
+  const persona = ref<Persona>(load(K.persona, defaultPersona()))
 
-  watch(
-    settings,
-    (v) => {
-      try {
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(v))
-      } catch {
-        /* 隐私模式下忽略 */
-      }
-    },
-    { deep: true },
-  )
-
-  watch(
-    persona,
-    (v) => {
-      try {
-        localStorage.setItem(PERSONA_KEY, JSON.stringify(v))
-      } catch {
-        /* 隐私模式下忽略 */
-      }
-    },
-    { deep: true },
-  )
+  watch(settings, (v) => writeJson(K.settings, v), { deep: true })
+  watch(persona, (v) => writeJson(K.persona, v), { deep: true })
 
   function reset() {
     settings.value = defaultSettings()
@@ -85,5 +57,22 @@ export const useSettingsStore = defineStore('settings', () => {
     return normalizedBaseUrl().length > 0 && settings.value.apiKey.trim().length > 0
   }
 
-  return { settings, persona, reset, normalizedBaseUrl, isConfigured }
+  /** baseUrl 是否为明文 HTTP —— 设置页据此显示醒目告警 */
+  function isInsecure(): boolean {
+    return /^http:\/\//i.test(normalizedBaseUrl())
+  }
+
+  function hasPersona(): boolean {
+    return Boolean(persona.value.nickname || persona.value.traits || persona.value.speechStyle)
+  }
+
+  return {
+    settings,
+    persona,
+    reset,
+    normalizedBaseUrl,
+    isConfigured,
+    isInsecure,
+    hasPersona,
+  }
 })
