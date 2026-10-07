@@ -21,4 +21,16 @@ export interface StreamHandlers {
   /** 每收到一段增量文本回调 */
   onDelta?: (delta: string) => void
   signal?: AbortSignal
+  /**
+   * 实际用了哪条传输通道。
+   * 浏览器 fetch 支持流式；原生 OkHttp 能绕过 CORS 但不支持流式。
+   */
+  onTransport?: (info: TransportInfo) => void
+}
+
+export interface TransportInfo {
+  mode: 'fetch' | 'native'
+  streaming: boolean
+  /** 为什么切换到原生通道 */
+  note?: string
 }

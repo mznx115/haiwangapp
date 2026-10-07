@@ -80,7 +80,11 @@ async function onTest() {
     testResult.value = {
       ok: true,
       title: '连接成功',
-      lines: [r.message, r.via === 'models' ? '探测方式：GET /v1/models' : '探测方式：POST /v1/chat/completions'],
+      lines: [
+        r.message,
+        r.via === 'models' ? '探测方式：GET /v1/models' : '探测方式：POST /v1/chat/completions',
+        ...(r.transport?.note ? [r.transport.note] : []),
+      ],
     }
   } catch (err) {
     const f = describeError(err)

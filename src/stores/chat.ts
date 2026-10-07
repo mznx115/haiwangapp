@@ -20,6 +20,8 @@ export interface LastMeta {
   recentTurns: number
   summarizedCount: number
   strategy: string
+  /** 本次实际走的传输通道说明（原生兜底时会提示已退化为非流式） */
+  transportNote?: string
 }
 
 /**
@@ -179,6 +181,12 @@ export const useChatStore = defineStore('chat', () => {
           signal: controller.signal,
           onDelta: (delta) => {
             assistant.content += delta
+          },
+          onTransport: (info) => {
+            const meta = lastMeta.value[profileId]
+            if (meta) {
+              meta.transportNote = info.note ?? (info.mode === 'native' ? '使用系统原生请求（非流式）' : undefined)
+            }
           },
         },
       )
