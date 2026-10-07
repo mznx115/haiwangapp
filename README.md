@@ -43,9 +43,31 @@ pnpm build        # 产物在 dist/
 pnpm typecheck    # 类型检查
 ```
 
+## 下载安装（Android）
+
+**免登录永久直链**，手机浏览器打开即下：
+
+```
+https://github.com/mznx115/haiwangapp/releases/download/build-latest/haiwang.apk
+```
+
+或打开 [Releases 页面](https://github.com/mznx115/haiwangapp/releases/latest)，
+在 Assets 里点 `haiwang.apk`。
+
+安装时系统会拦一下，需要在「设置 → 应用 → 特殊权限 → 安装未知应用」里
+允许你的浏览器。当前是 **debug 签名包**，仅供自用与内测；正式分发需要另配 keystore 签名。
+
 ## 打包 Android（云端）
 
-推到 `main` 后由 GitHub Actions 自动构建，产物在 Actions 的 Artifacts 中下载。
+推到 `main` 后由 GitHub Actions 自动构建，并把 APK 发布到 Releases：
+
+- **push 到 `main`** → 更新滚动 release `build-latest`，资源名固定为 `haiwang.apk`
+  （用 `--clobber` 覆盖），所以上面的直链永久有效
+- **打 `v*` 标签** → 额外创建版本化 release，资源名为 `haiwang-<tag>.apk`
+- 同时保留 Actions Artifact（30 天），但它需要登录 GitHub 且只能下 zip
+
+发布 Release 需要仓库开启写权限：Settings → Actions → General → Workflow permissions
+选 **Read and write permissions**。
 
 本地若要打包，需要 JDK 17 + Android SDK：
 
