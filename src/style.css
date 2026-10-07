@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+@theme {
+  /* 微信风配色 */
+  --color-wx-bg: #ededed;
+  --color-wx-panel: #ffffff;
+  --color-wx-me: #95ec69;
+  --color-wx-other: #ffffff;
+  --color-wx-text: #191919;
+  --color-wx-sub: #888888;
+  --color-wx-hint: #b2b2b2;
+  --color-wx-line: #e5e5e5;
+  --color-wx-brand: #07c160;
+  --color-wx-danger: #fa5151;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-wx-bg);
+  color: var(--color-wx-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* 移动端滚动容器：隐藏滚动条但保留滚动 */
+.scroll-area {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* 顶部安全区（刘海屏） */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+/* 底部安全区（手势条） */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 微信式分组列表 */
+.wx-card {
+  background: var(--color-wx-panel);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.wx-divider::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-wx-line);
+  transform: scaleY(0.5);
+}

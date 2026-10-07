@@ -1,0 +1,13 @@
+{
+  "name": "haiwang",
+  "description": "高情商海王聊天技能，多线社交、分寸感、升温不翻车",
+  "version": "1.0.0",
+  "author": "zhuangzzy",
+  "source": "https://github.com/zhuangzzy/haiwang.skill",
+  "skill_file": "SKILL.md",
+  "prompt_file": "prompt.txt",
+  "knowledge_file": "knowledge.md",
+  "type": "chat",
+  "trigger": "@haiwang",
+  "command": "use skill https://github.com/zhuangzzy/haiwang.skill"
+}

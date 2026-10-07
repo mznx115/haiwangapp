@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+dist-ssr/
+*.local
+
+# capacitor / android build artifacts（android/ 源码本身必须提交，CI 需要）
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/capacitor-cordova-android-plugins/
+android/.idea/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# 签名文件：绝不入库
+*.jks
+*.keystore
+keystore.properties
+
+# secrets
+.env
+.env.*
+!.env.example
+secrets.json
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*

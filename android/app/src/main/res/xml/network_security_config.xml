@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  明文 HTTP 放行策略。
+
+  为什么放开全局 cleartext：
+  本 App 允许用户在「设置」里填写任意 OpenAI 兼容网关地址，
+  很多自建网关（new-api / one-api / Ollama / LM Studio）默认只提供 http://。
+  如果只白名单某一个固定 IP，用户换一个内网地址就会直接连不上。
+
+  安全边界由以下三点共同保证：
+  1. 本文件只影响 cleartext 传输层策略，不降低 TLS 校验强度；
+  2. capacitor.config.ts 里 androidScheme 仍为 https，页面本身跑在 https://localhost；
+  3. 设置页在 baseUrl 为 http 时会显示醒目告警，提示尽快启用 HTTPS。
+
+  若你只使用固定的 HTTPS 网关，可把 base-config 改回
+  cleartextTrafficPermitted="false" 以获得更严格的默认策略。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
