@@ -9,9 +9,8 @@ on:
   workflow_dispatch:
 
 # 发布 Release 需要写权限。
-# 注意：如果仓库 Settings → Actions → General → Workflow permissions
-# 被设成了 "Read repository contents"，这里申请的写权限会被忽略，
-# 发布步骤会 403。届时把那一项改成 "Read and write permissions" 即可。
+# 若仓库 Settings → Actions → General → Workflow permissions 是只读，
+# 这里申请的写权限会被忽略，发布步骤会 403。
 permissions:
   contents: write
 
@@ -21,7 +20,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
@@ -72,23 +71,76 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build debug APK
+      # ---------- 签名密钥 ----------
+      # 刻意不在 if 里用 secrets 上下文（部分场景不可用），改用 shell 判断，
+      # 这样没配密钥时只是回退成 debug 签名，而不是让整个工作流挂掉。
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         working-directory: android
         run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::notice::未配置 KEYSTORE_BASE64，本次产出 debug 签名包"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > haiwang-release.p12
+          {
+            printf 'storeFile=haiwang-release.p12\n'
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+            printf 'storeType=PKCS12\n'
+          } > keystore.properties
+          echo "签名密钥已就绪：$(stat -c%s haiwang-release.p12) 字节"
+
+      # ---------- 构建 ----------
+
+      - name: Build APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 0.1.${{ github.run_number }}
+        run: |
+          set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          if [ -f keystore.properties ]; then
+            echo "以 release 签名构建（versionCode=${VERSION_CODE}）"
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            echo "APK_DIR=android/app/build/outputs/apk/release" >> "$GITHUB_ENV"
+            echo "SIGNED=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::未配置签名密钥，回退为 debug 签名"
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            echo "APK_DIR=android/app/build/outputs/apk/debug" >> "$GITHUB_ENV"
+            echo "SIGNED=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify APK signature
+        run: |
+          set -euo pipefail
+          APK=$(find "${APK_DIR}" -name '*.apk' | head -n 1)
+          echo "产物：$APK（$SIGNED 签名）"
+          if [ "$SIGNED" != "release" ]; then
+            echo "::notice::debug 签名，跳过校验。配置签名密钥后将自动改为 release 签名。"
+            exit 0
+          fi
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      # ---------- 上传 ----------
 
       - name: Upload APK (artifact)
         uses: actions/upload-artifact@v7
         with:
-          name: haiwang-debug-${{ github.sha }}
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: haiwang-${{ github.sha }}
+          path: android/app/build/outputs/apk/*/*.apk
           if-no-files-found: error
           retention-days: 30
-
-      # ---------- 发布到 Releases ----------
-      # 目的：Actions 的 artifact 需要登录且只能下 zip；
-      # Release 资源是永久直链，任何人不登录就能直接下载 apk。
 
       - name: Publish rolling release（main 分支）
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -98,11 +150,19 @@ jobs:
           set -euo pipefail
 
           SHORT_SHA="${GITHUB_SHA::7}"
-          APK=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          APK=$(find "${APK_DIR}" -name '*.apk' | head -n 1)
           cp "$APK" haiwang.apk
           SIZE=$(du -h haiwang.apk | cut -f1)
           NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/build-latest/haiwang.apk"
+
+          if [ "$SIGNED" = "release" ]; then
+            SIGN_LINE="release 正式签名（可覆盖安装升级）"
+            SIGN_NOTE=""
+          else
+            SIGN_LINE="⚠️ debug 签名"
+            SIGN_NOTE=$'\n> **当前未配置签名密钥**，这是 debug 签名包。\n> 从 debug 包切换到正式签名包时，因为签名不一致，需要先卸载旧版再安装。\n'
+          fi
 
           # 用 printf 而不是 heredoc：YAML 块标量会给每行加缩进，
           # 而 Markdown 里 4 个前导空格就是代码块，会把整个说明渲染坏。
@@ -112,15 +172,16 @@ jobs:
             printf '| --- | --- |\n'
             printf '| 提交 | `%s` |\n' "$SHORT_SHA"
             printf '| 构建时间 | %s |\n' "$NOW"
-            printf '| 安装包大小 | %s |\n\n' "$SIZE"
+            printf '| 安装包大小 | %s |\n' "$SIZE"
+            printf '| 签名 | %s |\n\n' "$SIGN_LINE"
+            printf '%s\n' "$SIGN_NOTE"
             printf '### 下载\n\n'
             printf '点下方 Assets 里的 `haiwang.apk`，**无需登录**。\n\n'
             printf '永久直链（可收藏或分享给朋友）：\n\n'
             printf '    %s\n\n' "$URL"
             printf '### 安装\n\n'
             printf '1. 手机浏览器打开本页，下载 `haiwang.apk`\n'
-            printf '2. 点击安装。首次会被系统拦一下，需要在「设置 → 应用 → 特殊权限 → 安装未知应用」里允许你的浏览器\n\n'
-            printf '> 这是 debug 签名包，仅供自用与内测。正式分发需要另配 keystore 签名。\n'
+            printf '2. 点击安装。首次会被系统拦一下，需要在「设置 → 应用 → 特殊权限 → 安装未知应用」里允许你的浏览器\n'
           } > release-notes.md
 
           if ! gh release view build-latest >/dev/null 2>&1; then
@@ -145,7 +206,7 @@ jobs:
           set -euo pipefail
 
           TAG="${GITHUB_REF_NAME}"
-          APK=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          APK=$(find "${APK_DIR}" -name '*.apk' | head -n 1)
           cp "$APK" "haiwang-${TAG}.apk"
           SIZE=$(du -h "haiwang-${TAG}.apk" | cut -f1)
 
@@ -154,7 +215,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "海王 ${TAG}" \
-              --notes "标签 \`${TAG}\` 的正式构建，安装包 ${SIZE}。" \
+              --notes "标签 \`${TAG}\` 的构建，安装包 ${SIZE}，签名方式 ${SIGNED}。" \
               "haiwang-${TAG}.apk"
           fi
 

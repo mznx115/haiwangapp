@@ -1,14 +1,30 @@
 apply plugin: 'com.android.application'
 
+// ---------------------------------------------------------------------------
+// 签名配置
+//
+// keystore.properties 与密钥库文件都不入库（见 .gitignore）。
+// CI 上由 GitHub Secrets 还原；本地没配时自动回退到 debug 签名，
+// 保证任何情况下都能出包 —— 只是没配密钥时产物是 debug 签名。
+// ---------------------------------------------------------------------------
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasReleaseKey = keystoreProps.getProperty("storeFile") != null
+
 android {
     namespace = "com.haiwang.chat"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
         applicationId "com.haiwang.chat"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI 传入构建序号，保证 versionCode 递增、覆盖安装正常
+        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
+        versionName System.getenv("VERSION_NAME") ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +32,31 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    signingConfigs {
+        // 只在真的有密钥时才声明：避免留下一个空的 signingConfig 被 AGP 校验
+        if (hasReleaseKey) {
+            release {
+                storeFile rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword keystoreProps.getProperty("storePassword")
+                keyAlias keystoreProps.getProperty("keyAlias")
+                keyPassword keystoreProps.getProperty("keyPassword")
+                storeType keystoreProps.getProperty("storeType") ?: "PKCS12"
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 没配密钥时不指定 signingConfig —— 此时产物是 unsigned，
+            // 而 CI 在那种情况下本来就走 assembleDebug，不会走到这里。
+            // 刻意不去引用 signingConfigs.debug：AGP 的 debug 签名配置
+            // 创建时机不保证，在这个位置可能取到 null。
+            if (hasReleaseKey) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
