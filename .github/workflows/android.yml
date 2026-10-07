@@ -108,16 +108,31 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
+
           if [ -f keystore.properties ]; then
-            echo "以 release 签名构建（versionCode=${VERSION_CODE}）"
-            ./gradlew assembleRelease --no-daemon --stacktrace
+            TASK=assembleRelease
             echo "APK_DIR=android/app/build/outputs/apk/release" >> "$GITHUB_ENV"
             echo "SIGNED=release" >> "$GITHUB_ENV"
           else
+            TASK=assembleDebug
             echo "::warning::未配置签名密钥，回退为 debug 签名"
-            ./gradlew assembleDebug --no-daemon --stacktrace
             echo "APK_DIR=android/app/build/outputs/apk/debug" >> "$GITHUB_ENV"
             echo "SIGNED=debug" >> "$GITHUB_ENV"
+          fi
+
+          echo "执行 ./gradlew ${TASK}（versionCode=${VERSION_CODE}）"
+          if ./gradlew "$TASK" --no-daemon --stacktrace > /tmp/gradle.log 2>&1; then
+            tail -n 12 /tmp/gradle.log
+          else
+            # 把关键报错行提升为 GitHub 注解。
+            # 注解可以通过公开的 check-run annotations 接口读到，
+            # 这样即使本地没有仓库写权限，也能定位 CI 失败原因。
+            grep -nE "FAILURE|What went wrong|^> |Caused by|Could not|error:|BUILD FAILED" /tmp/gradle.log \
+              | head -n 8 \
+              | while IFS= read -r line; do echo "::error::${line}"; done
+            echo "===== gradle.log 末尾 40 行 ====="
+            tail -n 40 /tmp/gradle.log
+            exit 1
           fi
 
       - name: Verify APK signature

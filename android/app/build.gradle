@@ -14,6 +14,26 @@ if (keystorePropsFile.exists()) {
 }
 def hasReleaseKey = keystoreProps.getProperty("storeFile") != null
 
+// 版本号可由 CI 注入（用构建序号），保证 versionCode 递增、覆盖安装正常。
+// 特意用「先算好变量、再赋值」的写法而不是内联表达式：
+//   写成 versionCode (expr).toInteger() 时，Groovy 会解析成
+//   versionCode(expr).toInteger()，即对 versionCode(...) 的返回值（void）
+//   再调方法，配置阶段直接报错。
+def envVersionCode = System.getenv("VERSION_CODE")
+def envVersionName = System.getenv("VERSION_NAME")
+def appVersionCode = 1
+def appVersionName = "1.0"
+if (envVersionCode) {
+    try {
+        appVersionCode = Integer.parseInt(envVersionCode.trim())
+    } catch (NumberFormatException ignored) {
+        logger.warn("VERSION_CODE 不是整数（${envVersionCode}），回退为 1")
+    }
+}
+if (envVersionName) {
+    appVersionName = envVersionName
+}
+
 android {
     namespace = "com.haiwang.chat"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -23,8 +43,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI 传入构建序号，保证 versionCode 递增、覆盖安装正常
-        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("VERSION_NAME") ?: "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
