@@ -56,6 +56,80 @@ pnpm cap:sync
 pnpm cap:open     # 用 Android Studio 打开
 ```
 
+## 部署成网页（PWA）
+
+**本项目没有任何后端。** 纯前端单页应用：数据存在浏览器 `localStorage`，
+AI 请求由浏览器直连你自己填的 OpenAI 兼容网关。所以只要有静态文件托管就能跑。
+
+```bash
+pnpm build      # 产物在 dist/，丢到任意静态托管即可
+pnpm preview    # 本地预览 http://localhost:4173
+```
+
+`dist/` 是**相对路径**产物（`base: './'`）+ hash 路由，所以既能放域名根目录，
+也能放 `/haiwangapp/` 这类子路径，刷新都不会 404。
+
+### ⚠️ 部署前必须确认两件事
+
+**1. 网关要有 CORS 头** —— 已实测你当前这台网关是 OK 的：
+
+```
+GET  /v1/models              → Access-Control-Allow-Origin: *
+OPTIONS /v1/chat/completions → 204, Allow-Methods: GET,POST,PUT,DELETE,OPTIONS
+```
+
+**2. 网关必须支持 HTTPS，否则不能部署到任何 HTTPS 站点** —— 实测
+`https://175.178.98.241:30888` **不支持 HTTPS**。浏览器会硬拦「HTTPS 页面请求 HTTP 接口」
+（mixed content，不是警告而是直接阻断）。
+
+| 部署位置 | 能否用 | 说明 |
+|---|---|---|
+| GitHub Pages / Vercel / Netlify（HTTPS） | ❌ | 需要网关先支持 HTTPS |
+| 自己的服务器走 http | ✅ | 同为 http，不触发拦截 |
+| `localhost` | ✅ | 被视为安全上下文 |
+| Android APK | ✅ | 原生 OkHttp 兜底 + 明文放行 |
+
+推荐做法是给网关加一层 HTTPS 反代（顺带也解决 API Key 明文传输的问题）：
+
+```caddyfile
+# Caddy：自动申请并续期证书，不用管 certbot
+你的域名.com {
+    reverse_proxy 127.0.0.1:30888
+}
+```
+
+```nginx
+# nginx：proxy_buffering off 不能少，否则 SSE 流式会被缓冲，
+# 话术要等全部生成完才一次性出现
+server {
+    listen 443 ssl;
+    server_name 你的域名.com;
+    ssl_certificate     /etc/letsencrypt/live/你的域名.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/你的域名.com/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:30888;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+### PWA 说明
+
+已配置 manifest + Service Worker：在 HTTPS（或 localhost）下用手机浏览器打开，
+可「添加到主屏幕」，之后独立窗口启动、有无浏览器地址栏的 App 观感。
+
+Service Worker **需要安全上下文**，所以在 http 站点上不会注册（页面本身照常能用，
+只是不能离线/不能安装）。预缓存只包含应用外壳，**AI 接口请求一律直连不缓存**。
+
+### 关于 CORS 兜底的一个差异
+
+APK 里 fetch 被跨域拦下时会自动改走原生 OkHttp 重试；**浏览器里没有这个兜底**
+（`Capacitor.isNativePlatform()` 为 false）。所以网页版完全依赖服务端返回 CORS 头。
+你当前网关已经配好了，这一条不是问题。
+
 ## 六层提示词结构
 
 | 层 | 内容 | 来源 |
@@ -71,11 +145,13 @@ pnpm cap:open     # 用 Android Studio 打开
 
 - [x] **M0** 工程脚手架、技能包内联、微信风布局与路由
 - [x] **M1** API 层（OpenAI 兼容、SSE 流式 + 非流式回退、模型列表、连接测试、错误中文翻译）
-- [x] **M2** Skill 引擎（六层组装、token 预算与历史压缩、结构化输出三级降级解析）
+- [x] **M2** Skill 引擎（六层组装、token 预算与历史压缩、结构化输出四级降级 + 截断抢救）
 - [x] **M3** 核心 UX（会话页、话术卡片、一键复制、上下文用量面板、关系阶段色标）
 - [x] **M4** 持久化（本机存储、对象档案增删改、人设卡编辑、导出/恢复）
 - [x] **M5** Android 工程 + GitHub Actions 云端构建 APK
-- [ ] **M6** 打磨（应用锁、话术收藏夹、深色模式、图标与启动图）
+- [x] **M6a** 应用图标与启动图（安卓 + PWA 共用一套设计，脚本可复现）
+- [x] **M7** 网页版 / PWA（相对路径产物、manifest、Service Worker、离线外壳）
+- [ ] **M6b** 应用锁、话术收藏夹、深色模式
 
 ### 与初版方案的偏差（重要）
 
@@ -83,13 +159,16 @@ pnpm cap:open     # 用 Android Studio 打开
 |---|---|---|
 | M4 用 `@capacitor-community/sqlite` | 本机 localStorage，收敛在 `src/db/storage.ts` 一层 | 原生插件在本机（无 JDK/SDK/真机）无法验证，贸然引入会埋下"跑不起来但看不出来"的坑。换 SQLite 只需替换该文件的实现，上层 store 不用改 |
 | M4 把 API Key 存进 Android Keystore | 暂存应用私有目录 | 同上，Keystore 加密必须在真机上验证。设置页已明确标注 |
+| 只做 Android APK | 额外产出网页版 / PWA | 项目本来就没有后端，纯静态产物即可再覆盖一个端；成本很低 |
 
 ### 已验证 / 未验证
 
-- ✅ `pnpm typecheck`、`pnpm test`（解析器 10 个用例）、`pnpm build` 全部通过
+- ✅ `pnpm typecheck`、`pnpm test`（解析器 16 个用例）、`pnpm build` 全部通过
 - ✅ GitHub Actions 云端产出 debug APK
-- ⚠️ **未经真机验证**：与真实网关的联通性（CORS / 明文 HTTP）、剪贴板、文件持久化
-- ⚠️ **尚未用真实 API Key 跑通过一次完整生成** —— 需要你在设置页填入 Key 后点「测试连接」
+- ✅ 静态托管下 manifest / sw.js / 图标 / 相对路径资源全部返回 200
+- ✅ 网关 CORS 已实测可用（`Access-Control-Allow-Origin: *`，预检 204）
+- ⚠️ **网关不支持 HTTPS** —— 因此不能部署到任何 HTTPS 站点，详见「部署成网页」
+- ⚠️ **未经真机验证**：与真实网关的端到端生成、剪贴板、原生 HTTP 兜底、PWA 安装
 
 详见 [方案.md](./方案.md)。
 
