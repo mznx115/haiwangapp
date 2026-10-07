@@ -3,9 +3,17 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+# 发布 Release 需要写权限。
+# 注意：如果仓库 Settings → Actions → General → Workflow permissions
+# 被设成了 "Read repository contents"，这里申请的写权限会被忽略，
+# 发布步骤会 403。届时把那一项改成 "Read and write permissions" 即可。
+permissions:
+  contents: write
 
 concurrency:
   group: android-${{ github.ref }}
@@ -70,10 +78,84 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK (artifact)
         uses: actions/upload-artifact@v7
         with:
           name: haiwang-debug-${{ github.sha }}
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # ---------- 发布到 Releases ----------
+      # 目的：Actions 的 artifact 需要登录且只能下 zip；
+      # Release 资源是永久直链，任何人不登录就能直接下载 apk。
+
+      - name: Publish rolling release（main 分支）
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          APK=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          cp "$APK" haiwang.apk
+          SIZE=$(du -h haiwang.apk | cut -f1)
+          NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/build-latest/haiwang.apk"
+
+          # 用 printf 而不是 heredoc：YAML 块标量会给每行加缩进，
+          # 而 Markdown 里 4 个前导空格就是代码块，会把整个说明渲染坏。
+          {
+            printf 'main 分支自动构建，每次推送覆盖更新。\n\n'
+            printf '| 项目 | 值 |\n'
+            printf '| --- | --- |\n'
+            printf '| 提交 | `%s` |\n' "$SHORT_SHA"
+            printf '| 构建时间 | %s |\n' "$NOW"
+            printf '| 安装包大小 | %s |\n\n' "$SIZE"
+            printf '### 下载\n\n'
+            printf '点下方 Assets 里的 `haiwang.apk`，**无需登录**。\n\n'
+            printf '永久直链（可收藏或分享给朋友）：\n\n'
+            printf '    %s\n\n' "$URL"
+            printf '### 安装\n\n'
+            printf '1. 手机浏览器打开本页，下载 `haiwang.apk`\n'
+            printf '2. 点击安装。首次会被系统拦一下，需要在「设置 → 应用 → 特殊权限 → 安装未知应用」里允许你的浏览器\n\n'
+            printf '> 这是 debug 签名包，仅供自用与内测。正式分发需要另配 keystore 签名。\n'
+          } > release-notes.md
+
+          if ! gh release view build-latest >/dev/null 2>&1; then
+            gh release create build-latest --title "海王 Android 版" --notes "初始化"
+          fi
+
+          # --clobber：覆盖同名资源，保证永远只有最新那一个 apk
+          gh release upload build-latest haiwang.apk --clobber
+
+          gh release edit build-latest \
+            --latest \
+            --title "海王 Android 版 · 最新构建（${SHORT_SHA}）" \
+            --notes-file release-notes.md
+
+          echo "已发布：https://github.com/${GITHUB_REPOSITORY}/releases/tag/build-latest"
+
+      - name: Publish versioned release（v* 标签）
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          APK=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          cp "$APK" "haiwang-${TAG}.apk"
+          SIZE=$(du -h "haiwang-${TAG}.apk" | cut -f1)
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "haiwang-${TAG}.apk" --clobber
+          else
+            gh release create "$TAG" \
+              --title "海王 ${TAG}" \
+              --notes "标签 \`${TAG}\` 的正式构建，安装包 ${SIZE}。" \
+              "haiwang-${TAG}.apk"
+          fi
+
+          echo "已发布：https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
