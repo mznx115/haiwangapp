@@ -68,7 +68,9 @@ export default defineConfig({
   // （GitHub Pages / 任意静态托管都需要）。配合 hash 路由，刷新不会 404。
   base: './',
   build: {
-    // Capacitor 8 内置 WebView 为现代 Chromium，es2020 足够且体积更优
+    // 注意：Android 端的 WebView 是**系统**提供的，不是 Capacitor 自带的。
+    // 国内不少 ROM 的 System WebView 不随 Google Play 更新，可能停在 Chrome 80~95。
+    // 所以不要按"现代 Chromium"来假设能力 —— 详见 build/vite-plugin-legacy-css.ts。
     target: 'es2020',
     outDir: 'dist',
     chunkSizeWarningLimit: 1500,

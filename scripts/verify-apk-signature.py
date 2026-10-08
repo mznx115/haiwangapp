@@ -108,7 +108,25 @@ def pem_to_der(pem_path: Path) -> bytes:
     return base64.b64decode(body)
 
 
+def force_utf8_stdout() -> None:
+    """Windows 控制台默认是 GBK，打印 ✔ / ✘ / 中文会抛 UnicodeEncodeError。
+
+    这个脚本的**退出码就是结论**，绝不能因为它自己打印不出一个符号就崩掉 ——
+    那会把"签名一致"误报成"校验失败"。所以先把标准输出切成 UTF-8。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 def main() -> int:
+    force_utf8_stdout()
+
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
