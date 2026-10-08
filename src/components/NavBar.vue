@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps<{
   title: string
-  /** 是否显示返回箭头 */
+  /**
+   * 是否显示返回箭头。不传时按路由自动判断：
+   * 底部 tab 的顶层页（/profiles、/favorites、/me）不带返回，
+   * 其余所有路由一律带返回。只有需要打破这条规则时才显式传值。
+   */
   back?: boolean
   /** 右侧插槽色点（防串号视觉锚点） */
   dotColor?: string
@@ -12,8 +16,9 @@ const props = defineProps<{
   subtitle?: string
 }>()
 
+const route = useRoute()
 const router = useRouter()
-const showBack = computed(() => props.back !== false)
+const showBack = computed(() => props.back ?? route.meta.tab !== true)
 
 function onBack() {
   if (window.history.length > 1) router.back()

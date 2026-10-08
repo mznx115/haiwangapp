@@ -52,7 +52,7 @@ const totalMsgs = computed(() => chat.totalMessages)
 
 <template>
   <div class="flex h-full flex-col">
-    <NavBar title="海王" :back="false">
+    <NavBar title="海王">
       <template #right>
         <button
           type="button"

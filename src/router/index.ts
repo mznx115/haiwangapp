@@ -3,6 +3,12 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
 /**
  * 使用 hash 路由：Capacitor 打包后由本地静态服务器托管，
  * hash 路由无需服务端 SPA fallback，刷新/深链都不会 404。
+ *
+ * meta.tab 有两个含义，它们是同一件事的两面：
+ *   1. App.vue 据此决定是否显示底部 TabBar；
+ *   2. NavBar.vue 据此决定标题栏是否显示返回箭头
+ *      （tab 顶层页 = /profiles、/favorites、/me，无处可返回）。
+ * 所以新增路由时只要 meta.tab 写对，返回按钮就自动正确。
  */
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/profiles' },
