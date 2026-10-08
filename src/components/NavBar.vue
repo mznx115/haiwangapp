@@ -2,14 +2,8 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-const props = defineProps<{
+defineProps<{
   title: string
-  /**
-   * 是否显示返回箭头。不传时按路由自动判断：
-   * 底部 tab 的顶层页（/profiles、/favorites、/me）不带返回，
-   * 其余所有路由一律带返回。只有需要打破这条规则时才显式传值。
-   */
-  back?: boolean
   /** 右侧插槽色点（防串号视觉锚点） */
   dotColor?: string
   /** 副标题，如关系阶段 */
@@ -18,7 +12,26 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
-const showBack = computed(() => props.back ?? route.meta.tab !== true)
+
+/**
+ * 返回箭头是否显示，规则只有一条：
+ *   底部 tab 的顶层页（/profiles、/favorites、/me）无处可返回 → 不显示；
+ *   其余所有路由 → 显示。
+ * 由 router 的 meta.tab 统一驱动，页面不用各自配置，新增路由也不会漏。
+ *
+ * ⚠️ 不要再把它改回 `defineProps` 里的布尔开关（例如 `back?: boolean`）。
+ * Vue 3 会把**缺省的 Boolean prop 强制成 false**，而不是 undefined ——
+ * 见 @vue/runtime-core 的 resolvePropValue：
+ *     if (isAbsent && !hasDefault) value = false
+ * 于是 `props.back !== false` 和 `props.back ?? x` 都会恒为 false，
+ * 表现就是"返回按钮死活不出现"，而且从模板上完全看不出原因。
+ * 这就是它之前一直没渲染出来的真正原因。
+ *
+ * 如果以后确实需要在某个非 tab 路由上隐藏返回，请用语义安全的
+ * `hideBack?: boolean`（缺省 false = 不隐藏，正好是想要的方向），
+ * 而不是 `showBack?: boolean` 这种缺省会被强制成 false 的写法。
+ */
+const showBack = computed(() => route.meta.tab !== true)
 
 function onBack() {
   if (window.history.length > 1) router.back()
