@@ -63,7 +63,7 @@ async function onCopy() {
       {{ card.text }}
     </p>
 
-    <footer v-if="card.scenario || card.risk" class="space-y-1 bg-black/[0.025] px-3 py-2">
+    <footer v-if="card.scenario || card.risk" class="[&>*+*]:mt-1 bg-black/[0.025] px-3 py-2">
       <p v-if="card.scenario" class="text-[12px] leading-snug text-wx-sub">
         <span class="text-wx-hint">适用场景：</span>{{ card.scenario }}
       </p>

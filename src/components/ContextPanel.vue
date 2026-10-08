@@ -25,7 +25,7 @@ const open = ref(false)
     <div v-if="open" class="border-t border-wx-line/70 px-3 py-2">
       <p class="mb-1.5 text-wx-hint">模型：{{ model || '未设置' }} · 解析策略：{{ meta.strategy }}</p>
       <p v-if="meta.transportNote" class="mb-1.5 text-[#b06b00]">{{ meta.transportNote }}</p>
-      <ul class="space-y-1">
+      <ul class="[&>*+*]:mt-1">
         <li v-for="l in meta.layers" :key="l.id" class="flex items-baseline justify-between gap-2">
           <span class="truncate" :class="l.chars === 0 ? 'text-wx-hint' : 'text-wx-sub'">
             {{ l.id }} {{ l.name }}

@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { legacyCss } from './build/vite-plugin-legacy-css'
 
 export default defineConfig({
   plugins: [
@@ -11,6 +12,9 @@ export default defineConfig({
     VitePWA({
       // 有新版本时自动接管，用户下次打开就是最新版
       registerType: 'autoUpdate',
+      // 不在 HTML 里自动注入注册脚本：App 内要跳过 Service Worker，
+      // 改由 src/main.ts 判断平台后手动注册。详见该文件注释。
+      injectRegister: null,
       includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: '海王 · AI 社交聊天助手',
@@ -47,6 +51,9 @@ export default defineConfig({
         enabled: false,
       },
     }),
+    // 必须放在最后：展平 @layer 并把 CSS 内联进 HTML，
+    // 否则老版 Android WebView 会整份丢弃样式。
+    legacyCss(),
   ],
   resolve: {
     alias: {

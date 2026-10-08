@@ -27,6 +27,7 @@
     "src/**/*.ts",
     "src/**/*.d.ts",
     "src/**/*.vue",
+    "build/**/*.ts",
     "vite.config.ts",
     "capacitor.config.ts"
   ]

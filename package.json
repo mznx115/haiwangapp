@@ -10,6 +10,7 @@
     "preview": "vite preview --port 4173",
     "typecheck": "vue-tsc --noEmit",
     "test": "node scripts/test-output-parser.ts",
+    "verify:css": "node scripts/check-css-compat.mjs",
     "cap:add": "cap add android",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android"

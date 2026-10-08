@@ -50,6 +50,11 @@ jobs:
       - name: Build web assets
         run: pnpm build
 
+      # 老版 Android WebView 不认识 @layer，会整份丢弃样式（表现为「CSS 没加载」）。
+      # 这一步守住底线：产物里不允许再出现 @layer。
+      - name: Verify CSS compatibility
+        run: pnpm verify:css
+
       - name: Sync Capacitor to Android
         run: npx cap sync android
 

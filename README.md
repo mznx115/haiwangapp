@@ -32,6 +32,14 @@ src/
 ├─ types/                 # 全局类型
 ├─ components/            # NavBar / TabBar …
 └─ views/                 # 对象 / 会话 / 话术库 / 我 / 设置 / 技能包
+
+build/
+└─ vite-plugin-legacy-css.ts   # 展平 @layer + 内联 CSS（老 WebView 兼容）
+
+scripts/
+├─ check-css-compat.mjs        # 产物 CSS 兼容性自检
+├─ verify-apk-signature.py     # 不依赖 JDK 的 APK 签名校验
+└─ gen-icons.py                # 图标 / 启动图生成
 ```
 
 ## 开发
@@ -41,6 +49,7 @@ pnpm install
 pnpm dev          # 浏览器打开 http://localhost:5173
 pnpm build        # 产物在 dist/
 pnpm typecheck    # 类型检查
+pnpm verify:css   # 检查构建产物里有没有老 WebView 不支持的 CSS
 ```
 
 ## 下载安装（Android）
@@ -55,7 +64,9 @@ https://github.com/mznx115/haiwangapp/releases/download/build-latest/haiwang.apk
 在 Assets 里点 `haiwang.apk`。
 
 安装时系统会拦一下，需要在「设置 → 应用 → 特殊权限 → 安装未知应用」里
-允许你的浏览器。当前是 **debug 签名包**，仅供自用与内测；正式分发需要另配 keystore 签名。
+允许你的浏览器。当前是 **release 正式签名包**，可以直接覆盖安装升级（详见「Release 签名」）。
+
+> 如果你之前装过 debug 签名的那一版，因为签名不一致，需要**先卸载再装**。
 
 ## 打包 Android（云端）
 
@@ -145,6 +156,8 @@ server {
 
 Service Worker **需要安全上下文**，所以在 http 站点上不会注册（页面本身照常能用，
 只是不能离线/不能安装）。预缓存只包含应用外壳，**AI 接口请求一律直连不缓存**。
+注册逻辑写在 `src/main.ts`，只有浏览器会走；App 内主动跳过，原因见
+[「Android WebView 样式兼容」](#android-webview-样式兼容重要)。
 
 ### 关于 CORS 兜底的一个差异
 
@@ -195,7 +208,56 @@ python scripts/verify-apk-signature.py haiwang.apk --expect cert.pem
 - 从 debug 签名包切换到正式签名包时，签名不一致，需要先卸载旧版再装
 - CI 用构建序号作为 `versionCode`，所以每次构建都能正常覆盖安装
 
+## Android WebView 样式兼容（重要）
+
+**症状**：APK 装到手机上，内容能显示、接口也通，但**完全没有样式** —— 看起来像是 CSS 没加载。
+
+**根因**：Tailwind CSS 4 输出的是原生 CSS `@layer`：
+
+```css
+@layer theme     { :root, :host { --color-wx-brand: #07c160 } }
+@layer base      { /* preflight */ }
+@layer utilities { .flex { display: flex } /* … */ }
+```
+
+按 CSS 规范，解析器遇到**不认识的 at-rule 必须连同它的块一起丢弃**。
+`@layer` 是 Chromium 99（2022-03）才支持的，更早的 WebView 会把
+`theme` / `base` / `utilities` 逐块丢掉 —— 于是 HTML 在、JS 跑得动、Vue 也正常渲染，
+唯独一个样式都不生效。
+
+国内很多 ROM 的 Android System WebView 不随 Google Play 更新（或根本没有 GMS），
+长期停在 Chrome 80~95，正好落在这个区间里。**这不是打包丢了文件** ——
+APK 里 `assets/public/` 下的 CSS 一直都在，是 WebView 解析不了。
+
+**处理**（[`build/vite-plugin-legacy-css.ts`](./build/vite-plugin-legacy-css.ts)）：
+
+1. 构建后把 `@layer` 展开成普通规则。Tailwind 的层顺序是
+   `properties → theme → base → utilities`，展开后保持同样的先后顺序，层叠结果一致
+   （层内规则的相对顺序本来就由源码顺序决定）。
+2. 顺带把 CSS **内联进 `index.html`**：App 里样式只在首屏需要，内联后少一次子资源请求，
+   也绕开了 WebView 本地资源加载器可能带来的 MIME / CORS 类问题。
+
+为了让基线降到 **Chrome 84**（flex `gap` 的下限），源码里避开了一类写法：
+
+| 不要用 | 改用 | 原因 |
+|---|---|---|
+| `space-y-*`、`space-x-*`、`divide-*` | `[&>*+*]:mt-N` | 这些工具类会生成 `:where()` 包装，Chromium < 88 会丢弃整条规则 |
+
+改完样式记得验证：
+
+```bash
+pnpm build && pnpm verify:css
+```
+
+CI 里也有同一步（`Verify CSS compatibility`），产物中一旦再出现 `@layer` 直接失败。
+
+**App 内不注册 Service Worker**：打包后资源本来就在本地包里，SW 没有任何收益，
+反而会在覆盖安装新版本时用缓存中的旧 `index.html` / 旧资源应答（旧 CSS 若已被
+`cleanupOutdatedCaches` 清掉，就是一片白板）。所以 `src/main.ts` 里判断
+`Capacitor.isNativePlatform()`，只有浏览器才注册。
+
 ## 六层提示词结构
+
 
 | 层 | 内容 | 来源 |
 |---|---|---|
@@ -228,10 +290,11 @@ python scripts/verify-apk-signature.py haiwang.apk --expect cert.pem
 
 ### 已验证 / 未验证
 
-- ✅ `pnpm typecheck`、`pnpm test`（解析器 16 个用例）、`pnpm build` 全部通过
-- ✅ GitHub Actions 云端产出 debug APK
+- ✅ `pnpm typecheck`、`pnpm test`（解析器 16 个用例）、`pnpm build`、`pnpm verify:css` 全部通过
+- ✅ GitHub Actions 云端产出 APK，release 正式签名已用 `apksigner` + 独立脚本双重校验
 - ✅ 静态托管下 manifest / sw.js / 图标 / 相对路径资源全部返回 200
 - ✅ 网关 CORS 已实测可用（`Access-Control-Allow-Origin: *`，预检 204）
+- ✅ 构建产物已无 `@layer`，CSS 内联进 `index.html`（修掉真机上「CSS 没加载」的问题）
 - ⚠️ **网关不支持 HTTPS** —— 因此不能部署到任何 HTTPS 站点，详见「部署成网页」
 - ⚠️ **未经真机验证**：与真实网关的端到端生成、剪贴板、原生 HTTP 兜底、PWA 安装
 

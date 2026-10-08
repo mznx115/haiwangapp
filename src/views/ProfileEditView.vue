@@ -135,7 +135,7 @@ const STAGE_HINTS = STAGE_ORDER.map((s) => ({ key: s, ...STAGE_META[s] }))
 
       <!-- 关系阶段 -->
       <p class="px-4 pt-5 pb-2 text-[13px] text-wx-sub">关系阶段（决定话术尺度）</p>
-      <div class="mx-4 space-y-2">
+      <div class="mx-4 [&>*+*]:mt-2">
         <button
           v-for="s in STAGE_HINTS"
           :key="s.key"

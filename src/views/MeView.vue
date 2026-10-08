@@ -37,7 +37,7 @@ const hasInfo = computed(
 
 <template>
   <div class="flex h-full flex-col">
-    <NavBar title="我" :back="false">
+    <NavBar title="我">
       <template #right>
         <button
           v-if="!editing"
@@ -101,7 +101,7 @@ const hasInfo = computed(
           还没填写。人设卡会作为 L3 层注入每一次请求，
           保证生成的话术都是「你」在说，而不是一个通用 AI 的口吻。
         </p>
-        <dl v-else class="space-y-2.5">
+        <dl v-else class="[&>*+*]:mt-2.5">
           <div v-if="settings.persona.age">
             <dt class="text-wx-hint">年龄</dt>
             <dd>{{ settings.persona.age }}</dd>

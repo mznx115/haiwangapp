@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar.vue'
 
 <template>
   <div class="flex h-full flex-col">
-    <NavBar title="话术库" :back="false" />
+    <NavBar title="话术库" />
     <div class="scroll-area min-h-0 flex-1 px-4 py-6">
       <div class="rounded-lg bg-wx-other p-4 text-[13px] leading-relaxed text-wx-sub">
         <p class="mb-2 text-[14px] font-medium text-wx-text">收藏夹（M6 开放）</p>

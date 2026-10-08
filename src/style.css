@@ -1,5 +1,22 @@
 @import 'tailwindcss';
 
+/*
+ * 兼容性约定（不要随手改）：
+ *
+ * 国内不少 ROM 的 Android System WebView 不随 Google Play 更新，长期停在
+ * Chrome 80~95。Tailwind v4 的输出依赖一批较新的 CSS 特性，其中
+ * `@layer`（Chromium 99+）在老 WebView 上会导致**整份样式被丢弃**。
+ * 构建时由 build/vite-plugin-legacy-css.ts 把 @layer 展平并内联进 HTML。
+ *
+ * 但有两类语法没法在构建期安全降级，只能从源头避开：
+ *   1. `:where()` / `:is()`（Chromium 88+）—— 所以不要用 `space-y-*`、
+ *      `space-x-*`、`divide-*` 这类会生成 :where() 包装的工具类，
+ *      改用 `[&>*+*]:mt-N`（等价且不引入 :where()）。
+ *   2. flex/grid 的 `gap`（Chromium 84+）—— 这是下限，再低就没救了。
+ *
+ * 改完样式后可用 scripts/check-css-compat.mjs 验证产物。
+ */
+
 @theme {
   /* 微信风配色 */
   --color-wx-bg: #ededed;

@@ -144,7 +144,7 @@ function bumpMaxTokens() {
         <div v-if="messages.length === 0" class="mx-auto mt-8 max-w-sm">
           <div class="rounded-lg bg-white p-4 text-[13px] leading-relaxed text-wx-sub shadow-sm">
             <p class="mb-2 text-[14px] font-medium text-wx-text">怎么用</p>
-            <ol class="list-decimal space-y-1 pl-5">
+            <ol class="list-decimal [&>*+*]:mt-1 pl-5">
               <li>把 TA 发来的消息粘贴到下边（也可以是你自己想说的话）</li>
               <li>点「生成」，会按 {{ stage?.label }} 阶段给出 3 条话术</li>
               <li>每条都带适用场景和风险提示，点「复制」直接发</li>
@@ -192,7 +192,7 @@ function bumpMaxTokens() {
 
               <ul
                 v-if="m.answer.warnings.length"
-                class="space-y-1 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"
+                class="[&>*+*]:mt-1 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"
               >
                 <li v-for="(w, i) in m.answer.warnings" :key="i">⚠ {{ w }}</li>
               </ul>
@@ -227,7 +227,7 @@ function bumpMaxTokens() {
 
               <ul
                 v-if="m.safety?.length"
-                class="space-y-1 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"
+                class="[&>*+*]:mt-1 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] leading-snug text-[#b06b00]"
               >
                 <li v-for="(w, i) in m.safety" :key="i">⚠ {{ w }}</li>
               </ul>
@@ -283,7 +283,7 @@ function bumpMaxTokens() {
           </button>
         </div>
 
-        <ul v-if="inputHint.length" class="mb-1.5 space-y-0.5">
+        <ul v-if="inputHint.length" class="mb-1.5 [&>*+*]:mt-0.5">
           <li v-for="(h, i) in inputHint" :key="i" class="text-[11px] leading-snug text-[#b06b00]">⚠ {{ h }}</li>
         </ul>
 
